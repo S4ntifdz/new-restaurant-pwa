@@ -1,0 +1,17 @@
+{
+  "name": "QT-Rapimozo",
+  "short_name": "QT-Rapimozo",
+  "description": "Sistema de pedidos móvil para restaurantes",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ff8c00",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
