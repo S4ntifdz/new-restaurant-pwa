@@ -103,6 +103,32 @@ export class ApiClient {
     }
   }
 
+  async validateJWTWithIdentifier(token: string, identifier: string): Promise<{valid: boolean, session_token: string}> {
+    // Temporarily set the original JWT token for this request
+    const originalToken = this.token;
+    this.token = token;
+    
+    try {
+      console.log('Validating JWT with identifier:', identifier);
+      
+      const response = await this.request<{valid: boolean, session_token: string}>('/validate-jwt/', {
+        headers: {
+          'x-identifier': identifier
+        }
+      });
+      
+      console.log('JWT validation with identifier response:', response);
+      return response;
+      
+    } catch (error) {
+      console.error('JWT validation with identifier failed:', error);
+      throw error;
+    } finally {
+      // Restore the original token
+      this.token = originalToken;
+    }
+  }
+
   async getTableUuidFromJWT(): Promise<string | null> {
     try {
       const response = await this.request<{valid: boolean, table_uuid: string}>('/validate-jwt/');
@@ -111,6 +137,16 @@ export class ApiClient {
       console.error('Failed to get table UUID:', error);
       return null;
     }
+  }
+
+  // Get client unpaid orders (new endpoint)
+  async getClientUnpaidOrders() {
+    return this.request('/orders/client-unpaid-orders/');
+  }
+
+  // Get open sessions for a table
+  async getOpenSessions() {
+    return this.request('/tables/open-sessions/');
   }
 
   // Tables

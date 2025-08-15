@@ -7,10 +7,12 @@ import { DashboardPage } from './pages/DashboardPage';
 import { MenuPage } from './pages/MenuPage';
 import { CartPage } from './pages/CartPage';
 import { PaymentPage } from './pages/PaymentPage';
+import { PaymentSelectionPage } from './pages/PaymentSelectionPage';
 import { ConfirmationPage } from './pages/ConfirmationPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { JWTTokenPage } from './pages/JWTTokenPage';
+import { IdentificationPage } from './pages/IdentificationPage';
 
 function App() {
   const { isDark } = useThemeStore();
@@ -38,8 +40,11 @@ function App() {
           {/* Loading/Auth Route */}
           <Route path="/loading/:tableId" element={<LoadingPage />} />
           
-          {/* JWT Token Route - for URLs like /jwt-token */}
+          {/* JWT Token Route - for URLs like /jwt-token - now goes to identification */}
           <Route path="/:token" element={<JWTTokenPage />} />
+          
+          {/* Identification Route */}
+          <Route path="/identify/:token" element={<IdentificationPage />} />
           
           {/* Error Route */}
           <Route path="/error" element={<ErrorPage />} />
@@ -77,6 +82,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <OrderConfirmationPage />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/payment-selection/:tableId" 
+            element={
+              <ProtectedRoute>
+                <PaymentSelectionPage />
               </ProtectedRoute>
             } 
           />

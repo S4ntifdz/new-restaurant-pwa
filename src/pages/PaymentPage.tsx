@@ -1,41 +1,38 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Header } from '../components/Header';
-import { CreditCard, Building2, DollarSign } from 'lucide-react';
+import { QRPaymentModal } from '../components/QRPaymentModal';
+import { RatingModal } from '../components/RatingModal';
+import { CreditCard, Building2, DollarSign, QrCode, Smartphone } from 'lucide-react';
 import { apiClient } from '../lib/api';
 
 interface PaymentMethod {
   id: string;
   name: string;
   icon: React.ReactNode;
-  type: 'credit_card' | 'transfer' | 'cash';
+  type: 'credit_card' | 'transfer' | 'cash' | 'qr' | 'mercadopago';
 }
 
 export function PaymentPage() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('credit_card');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cash');
   const [processing, setProcessing] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
   
-  // Get unpaid orders data from location state or use mock data
-  const unpaidOrders = location.state?.unpaidOrders || {
-    table_number: 1,
-    total_amount_owed: 45.50,
-    orders: [
-      {
-        id: 1,
-        order_number: 123,
-        order_products: [
-          { quantity: 2, product_details: { name: 'Hamburguesa', price: 15.00 } },
-          { quantity: 1, product_details: { name: 'Papas Fritas', price: 8.50 } },
-          { quantity: 1, product_details: { name: 'Coca Cola', price: 7.00 } }
-        ]
-      }
-    ]
-  };
+  const { paymentType, unpaidOrders } = location.state || {};
+  const [ordersToShow, setOrdersToShow] = useState(unpaidOrders);
 
   const paymentMethods: PaymentMethod[] = [
+    {
+      id: 'cash',
+      name: 'Efectivo',
+      icon: <DollarSign className="w-5 h-5" />,
+      type: 'cash'
+    },
     {
       id: 'credit_card',
       name: 'Tarjeta de Crédito',
@@ -43,21 +40,40 @@ export function PaymentPage() {
       type: 'credit_card'
     },
     {
-      id: 'transfer',
-      name: 'Transferencia',
-      icon: <Building2 className="w-5 h-5" />,
-      type: 'transfer'
+      id: 'qr',
+      name: 'QR',
+      icon: <QrCode className="w-5 h-5" />,
+      type: 'qr'
     },
     {
-      id: 'cash',
-      name: 'Efectivo',
-      icon: <DollarSign className="w-5 h-5" />,
-      type: 'cash'
+      id: 'mercadopago',
+      name: 'MercadoPago',
+      icon: <Smartphone className="w-5 h-5" />,
+      type: 'mercadopago'
     }
   ];
 
+  // Load orders based on payment type
+  React.useEffect(() => {
+    const loadOrders = async () => {
+      if (paymentType === 'individual') {
+        // Use client unpaid orders (already loaded)
+        const clientOrders = await apiClient.getClientUnpaidOrders();
+        setOrdersToShow(clientOrders);
+      } else if (paymentType === 'table' && tableId) {
+        // Use table unpaid orders
+        const tableOrders = await apiClient.getUnpaidOrders(tableId);
+        setOrdersToShow(tableOrders);
+      }
+    };
+
+    if (paymentType) {
+      loadOrders();
+    }
+  }, [paymentType, tableId]);
+
   const handlePayment = async () => {
-    if (!tableId) return;
+    if (!tableId || !ordersToShow) return;
     
     setProcessing(true);
     
@@ -65,22 +81,22 @@ export function PaymentPage() {
       // Create payment with API
       const paymentData = {
         method: selectedPaymentMethod,
-        amount: unpaidOrders.total_amount_owed.toString()
+        amount: ordersToShow.total_amount_owed.toString()
       };
 
       console.log('Creating payment:', paymentData);
       const response = await apiClient.createPayment(paymentData);
       console.log('Payment created:', response);
       
-      // Navigate to confirmation
-      navigate(`/confirmation/${tableId}`, {
-        state: {
-          orderNumber: 'PAID-' + Date.now(),
-          total: unpaidOrders.total_amount_owed,
-          paymentMethod: paymentMethods.find(pm => pm.id === selectedPaymentMethod)?.name,
-          paymentResponse: response
-        }
-      });
+      setPaymentCompleted(true);
+      
+      // Show QR modal if QR payment was selected
+      if (selectedPaymentMethod === 'qr') {
+        setShowQRModal(true);
+      } else {
+        // Show rating modal for other payment methods
+        setShowRatingModal(true);
+      }
       
     } catch (error) {
       console.error('Error creating payment:', error);
@@ -90,38 +106,92 @@ export function PaymentPage() {
     }
   };
 
+  const handleQRModalClose = () => {
+    setShowQRModal(false);
+    setShowRatingModal(true);
+  };
+
+  const handleRatingSubmit = (rating: number, comment?: string) => {
+    console.log('Rating submitted:', { rating, comment });
+    
+    // Navigate to confirmation
+    navigate(`/confirmation/${tableId}`, {
+      state: {
+        orderNumber: 'PAID-' + Date.now(),
+        total: ordersToShow?.total_amount_owed,
+        paymentMethod: paymentMethods.find(pm => pm.id === selectedPaymentMethod)?.name,
+        rating,
+        comment
+      }
+    });
+  };
+
+  const handleRatingClose = () => {
+    // Navigate to confirmation without rating
+    navigate(`/confirmation/${tableId}`, {
+      state: {
+        orderNumber: 'PAID-' + Date.now(),
+        total: ordersToShow?.total_amount_owed,
+        paymentMethod: paymentMethods.find(pm => pm.id === selectedPaymentMethod)?.name
+      }
+    });
+  };
+
+  if (!ordersToShow) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <Header title="Pago" showBack />
+        <div className="flex items-center justify-center py-16">
+          <div className="text-center">
+            <p className="text-gray-600 dark:text-gray-400">Cargando información de pago...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-32">
+    <>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-32">
       <Header title="Pago" showBack />
 
       <div className="p-4 space-y-6">
+        {/* Payment Type Info */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+          <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
+            Tipo de pago:
+          </h3>
+          <p className="text-blue-700 dark:text-blue-300">
+            {paymentType === 'individual' ? 'Pagando solo mis órdenes' : 'Pagando toda la mesa'}
+          </p>
+        </div>
+
         {/* Payment Info */}
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
-            Pago de Mesa
+            {paymentType === 'individual' ? 'Pago Individual' : 'Pago de Mesa'}
           </h3>
           
           <div className="text-center py-8">
             <p className="text-gray-600 dark:text-gray-400 mb-2">
-              Mesa {unpaidOrders.table_number} - Órdenes pendientes
+              Mesa {ordersToShow.table_number} - Órdenes pendientes
             </p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              Total a pagar: ${unpaidOrders.total_amount_owed.toFixed(2)}
+              Total a pagar: ${ordersToShow.total_amount_owed.toFixed(2)}
             </p>
           </div>
           
           {/* Order Details */}
           <div className="space-y-3 mt-4">
             <h4 className="font-medium text-gray-900 dark:text-white">Detalle de órdenes:</h4>
-            {unpaidOrders.orders.flatMap(order => 
+            {ordersToShow.orders.flatMap(order => 
               order.order_products.map((item, index) => (
-                <div key={`${order.id}-${index}`} className="flex justify-between items-center">
+                <div key={`${order.uuid || order.id}-${index}`} className="flex justify-between items-center">
                   <span className="text-gray-700 dark:text-gray-300">
-{item.quantity}x {item.product_details?.name || item.offer_details?.name || 'Producto'}
+                    {item.quantity}x {item.product_details?.name || item.offer_details?.name || 'Producto'}
                   </span>
                   <span className="font-medium text-gray-900 dark:text-white">
-${((item.product_details?.price || item.offer_details?.price || 0) * item.quantity).toFixed(2)}
-                    
+                    ${((item.product_details?.price || item.offer_details?.price || 0) * item.quantity).toFixed(2)}
                   </span>
                 </div>
               ))
@@ -184,9 +254,15 @@ ${((item.product_details?.price || item.offer_details?.price || 0) * item.quanti
                   </div>
                 )}
                 
-                {method.type === 'transfer' && (
-                  <div className="w-8 h-5 bg-gray-600 rounded text-white text-xs flex items-center justify-center">
-                    $
+                {method.type === 'qr' && (
+                  <div className="w-8 h-5 bg-gray-800 rounded text-white text-xs flex items-center justify-center">
+                    QR
+                  </div>
+                )}
+                
+                {method.type === 'mercadopago' && (
+                  <div className="w-8 h-5 bg-blue-500 rounded text-white text-xs flex items-center justify-center font-bold">
+                    MP
                   </div>
                 )}
               </label>
@@ -199,19 +275,34 @@ ${((item.product_details?.price || item.offer_details?.price || 0) * item.quanti
       <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4">
         <button
           onClick={handlePayment}
-          disabled={processing}
+          disabled={processing || paymentCompleted}
           className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white py-3 rounded-lg font-medium transition-colors flex items-center justify-center"
         >
-          {processing ? (
+          {processing || paymentCompleted ? (
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Procesando Pago...
+              {processing ? 'Procesando Pago...' : 'Pago Completado'}
             </div>
           ) : (
-            `Pagar Mesa $${unpaidOrders.total_amount_owed.toFixed(2)}`
+            `Pagar $${ordersToShow.total_amount_owed.toFixed(2)}`
           )}
         </button>
       </div>
-    </div>
+      </div>
+
+      {/* QR Payment Modal */}
+      <QRPaymentModal
+        isOpen={showQRModal}
+        onClose={handleQRModalClose}
+        amount={ordersToShow?.total_amount_owed || 0}
+      />
+
+      {/* Rating Modal */}
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={handleRatingClose}
+        onSubmit={handleRatingSubmit}
+      />
+    </>
   );
 }

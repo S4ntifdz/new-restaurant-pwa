@@ -3,10 +3,17 @@ import { persist } from 'zustand/middleware';
 import { AuthState } from '../types';
 import { apiClient } from '../lib/api';
 
+interface ValidationResult {
+  success: boolean;
+  sessionToken?: string;
+  error?: string;
+}
+
 interface AuthStore extends AuthState {
   setToken: (token: string) => void;
   setTableId: (tableId: string) => void;
   validateToken: (token: string) => Promise<boolean>;
+  validateTokenWithIdentifier: (token: string, identifier: string) => Promise<ValidationResult>;
   logout: () => void;
   setError: (error: string | null) => void;
   setValidating: (isValidating: boolean) => void;
@@ -68,6 +75,60 @@ export const useAuthStore = create<AuthStore>()(
             error: 'Error de conexión con el servidor' 
           });
           return false;
+        }
+      },
+
+      validateTokenWithIdentifier: async (token: string, identifier: string) => {
+        set({ isValidating: true, error: null });
+        
+        console.log('Starting token validation with identifier:', identifier);
+        
+        try {
+          const result = await apiClient.validateJWTWithIdentifier(token, identifier);
+          
+          if (result.valid && result.session_token) {
+            // Set the session token as the new auth token
+            apiClient.setToken(result.session_token);
+            
+            set({ 
+              token: result.session_token, 
+              isAuthenticated: true, 
+              isValidating: false,
+              error: null 
+            });
+            
+            return {
+              success: true,
+              sessionToken: result.session_token
+            };
+          } else {
+            set({ 
+              token: null, 
+              isAuthenticated: false, 
+              isValidating: false,
+              error: 'Token inválido o identificador no válido' 
+            });
+            
+            return {
+              success: false,
+              error: 'Token inválido o identificador no válido'
+            };
+          }
+        } catch (error) {
+          console.error('Token validation with identifier error:', error);
+          const errorMessage = 'Error de conexión con el servidor';
+          
+          set({ 
+            token: null, 
+            isAuthenticated: false, 
+            isValidating: false,
+            error: errorMessage 
+          });
+          
+          return {
+            success: false,
+            error: errorMessage
+          };
         }
       },
 

@@ -29,7 +29,9 @@ export interface CartOffer {
 
 export interface Order {
   id?: number;
+  uuid?: string;
   order_number?: number;
+  session?: string;
   table: string;
   order_products: Array<{
     product: string;
@@ -100,6 +102,15 @@ export interface Menu {
 }
 
 export interface UnpaidOrdersResponse {
+  table_uuid: string;
+  table_number: number;
+  orders: Order[];
+  total_amount_owed: number;
+  unpaid_orders_count: number;
+}
+
+export interface ClientUnpaidOrdersResponse {
+  session_id: string;
   table_uuid: string;
   table_number: number;
   orders: Order[];
