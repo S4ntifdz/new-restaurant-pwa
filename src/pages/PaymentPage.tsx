@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { QRPaymentModal } from '../components/QRPaymentModal';
 import { RatingModal } from '../components/RatingModal';
-import { CreditCard, Building2, DollarSign, QrCode, Smartphone } from 'lucide-react';
+import { CreditCard, Building2, DollarSign, QrCode, Smartphone, Heart, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiClient } from '../lib/api';
 
 interface PaymentMethod {
@@ -22,9 +22,22 @@ export function PaymentPage() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [showTipSection, setShowTipSection] = useState(false);
+  const [selectedWaiter, setSelectedWaiter] = useState('');
+  const [tipPercentage, setTipPercentage] = useState(0);
+  const [customTipAmount, setCustomTipAmount] = useState('');
   
   const { paymentType, unpaidOrders } = location.state || {};
   const [ordersToShow, setOrdersToShow] = useState(unpaidOrders);
+
+  // Mock data for waiters - in real app this would come from API
+  const waiters = [
+    { id: '1', name: 'Carlos', percentage: 10 },
+    { id: '2', name: 'María', percentage: 15 },
+    { id: '3', name: 'José', percentage: 12 },
+    { id: '4', name: 'Ana', percentage: 18 },
+    { id: '5', name: 'Luis', percentage: 20 },
+  ];
 
   const paymentMethods: PaymentMethod[] = [
     {
@@ -94,8 +107,10 @@ export function PaymentPage() {
       if (selectedPaymentMethod === 'qr') {
         setShowQRModal(true);
       } else {
-        // Show rating modal for other payment methods
-        setShowRatingModal(true);
+        // Show rating modal after 3 seconds for other payment methods
+        setTimeout(() => {
+          setShowRatingModal(true);
+        }, 3000);
       }
       
     } catch (error) {
@@ -108,7 +123,10 @@ export function PaymentPage() {
 
   const handleQRModalClose = () => {
     setShowQRModal(false);
-    setShowRatingModal(true);
+    // Show rating modal after 3 seconds when QR modal closes
+    setTimeout(() => {
+      setShowRatingModal(true);
+    }, 3000);
   };
 
   const handleRatingSubmit = (rating: number, comment?: string) => {
@@ -135,6 +153,26 @@ export function PaymentPage() {
         paymentMethod: paymentMethods.find(pm => pm.id === selectedPaymentMethod)?.name
       }
     });
+  };
+
+  const calculateTipAmount = () => {
+    if (!ordersToShow) return 0;
+    
+    if (selectedWaiter === 'custom') {
+      return parseFloat(customTipAmount) || 0;
+    }
+    
+    const waiter = waiters.find(w => w.id === selectedWaiter);
+    if (waiter) {
+      return (ordersToShow.total_amount_owed * waiter.percentage) / 100;
+    }
+    
+    return 0;
+  };
+
+  const getTotalWithTip = () => {
+    if (!ordersToShow) return 0;
+    return ordersToShow.total_amount_owed + calculateTipAmount();
   };
 
   if (!ordersToShow) {
@@ -199,6 +237,136 @@ export function PaymentPage() {
           </div>
         </div>
 
+        {/* Tip Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+          <button
+            onClick={() => setShowTipSection(!showTipSection)}
+            className="w-full flex items-center justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <Heart className="w-5 h-5 text-red-500" />
+              <span className="font-semibold text-gray-900 dark:text-white">
+                Dejar Propina
+              </span>
+            </div>
+            {showTipSection ? (
+              <ChevronUp className="w-5 h-5 text-gray-500" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-500" />
+            )}
+          </button>
+
+          {showTipSection && (
+            <div className="mt-4 space-y-3">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Selecciona un mozo para dejar propina:
+              </p>
+              
+              <div className="space-y-2">
+                {waiters.map((waiter) => (
+                  <label
+                    key={waiter.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                      selectedWaiter === waiter.id
+                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="waiter"
+                        value={waiter.id}
+                        checked={selectedWaiter === waiter.id}
+                        onChange={(e) => setSelectedWaiter(e.target.value)}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        selectedWaiter === waiter.id
+                          ? 'border-red-500 bg-red-500'
+                          : 'border-gray-300 dark:border-gray-600'
+                      }`}>
+                        {selectedWaiter === waiter.id && (
+                          <div className="w-2 h-2 bg-white rounded-full" />
+                        )}
+                      </div>
+                      <span className="text-gray-900 dark:text-white font-medium">
+                        {waiter.name}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        {waiter.percentage}%
+                      </span>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        ${((ordersToShow?.total_amount_owed || 0) * waiter.percentage / 100).toFixed(2)}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+                
+                {/* Custom Amount Option */}
+                <label
+                  className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                    selectedWaiter === 'custom'
+                      ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="waiter"
+                      value="custom"
+                      checked={selectedWaiter === 'custom'}
+                      onChange={(e) => setSelectedWaiter(e.target.value)}
+                      className="sr-only"
+                    />
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                      selectedWaiter === 'custom'
+                        ? 'border-red-500 bg-red-500'
+                        : 'border-gray-300 dark:border-gray-600'
+                    }`}>
+                      {selectedWaiter === 'custom' && (
+                        <div className="w-2 h-2 bg-white rounded-full" />
+                      )}
+                    </div>
+                    <span className="text-gray-900 dark:text-white font-medium">
+                      Otro monto
+                    </span>
+                  </div>
+                  {selectedWaiter === 'custom' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600 dark:text-gray-400">$</span>
+                      <input
+                        type="number"
+                        value={customTipAmount}
+                        onChange={(e) => setCustomTipAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                        step="0.01"
+                        min="0"
+                      />
+                    </div>
+                  )}
+                </label>
+              </div>
+              
+              {selectedWaiter && (
+                <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-green-800 dark:text-green-200 font-medium">
+                      Propina seleccionada:
+                    </span>
+                    <span className="text-green-900 dark:text-green-100 font-bold">
+                      ${calculateTipAmount().toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         {/* Payment Methods */}
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
@@ -273,6 +441,24 @@ export function PaymentPage() {
 
       {/* Fixed Bottom Button */}
       <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4">
+        {selectedWaiter && (
+          <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
+              <span className="text-gray-900 dark:text-white">${ordersToShow.total_amount_owed.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-600 dark:text-gray-400">Propina:</span>
+              <span className="text-gray-900 dark:text-white">${calculateTipAmount().toFixed(2)}</span>
+            </div>
+            <div className="border-t border-gray-200 dark:border-gray-600 mt-2 pt-2">
+              <div className="flex justify-between items-center font-semibold">
+                <span className="text-gray-900 dark:text-white">Total:</span>
+                <span className="text-gray-900 dark:text-white">${getTotalWithTip().toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        )}
         <button
           onClick={handlePayment}
           disabled={processing || paymentCompleted}
@@ -284,7 +470,7 @@ export function PaymentPage() {
               {processing ? 'Procesando Pago...' : 'Pago Completado'}
             </div>
           ) : (
-            `Pagar $${ordersToShow.total_amount_owed.toFixed(2)}`
+            `Pagar $${getTotalWithTip().toFixed(2)}`
           )}
         </button>
       </div>

@@ -285,9 +285,31 @@ export function DashboardPage() {
           
           {unpaidOrders && unpaidOrders.total_amount_owed > 0 && (
             <button
-              onClick={() => navigate(`/payment-selection/${tableId}`, { 
-                state: { unpaidOrders } 
-              })}
+              onClick={() => {
+                // Check if there's more than one person at the table
+                apiClient.getOpenSessions().then(response => {
+                  if (response.open_sessions > 1) {
+                    // Show payment selection if more than one person
+                    navigate(`/payment-selection/${tableId}`, { 
+                      state: { unpaidOrders } 
+                    });
+                  } else {
+                    // Go directly to payment if only one person
+                    navigate(`/payment/${tableId}`, {
+                      state: {
+                        paymentType: 'individual',
+                        unpaidOrders
+                      }
+                    });
+                  }
+                }).catch(error => {
+                  console.error('Error checking open sessions:', error);
+                  // Fallback to payment selection
+                  navigate(`/payment-selection/${tableId}`, { 
+                    state: { unpaidOrders } 
+                  });
+                });
+              }}
               className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
             >
               <CreditCard className="w-5 h-5" />
