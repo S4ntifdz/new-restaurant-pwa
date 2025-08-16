@@ -66,8 +66,24 @@ export function OrderConfirmationPage() {
   };
 
   if (items.length === 0 && offers.length === 0) {
-    navigate(`/menu/${tableId}`);
-    return null;
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <Header title="Confirmar Pedido" showBack />
+        <div className="flex items-center justify-center py-16">
+          <div className="text-center">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              No hay productos en el carrito
+            </p>
+            <button
+              onClick={() => navigate(`/menu/${tableId}`)}
+              className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-colors"
+            >
+              Ir al Menú
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
